@@ -12,6 +12,7 @@ const cartRoutes = require('./routes/cartRoutes');
 
 const app = express();
 
+//engine
 app.set('view engine', 'ejs');
 app.use(express.static('public'));
 app.use(bodyParser.urlencoded({ extended: false }));
