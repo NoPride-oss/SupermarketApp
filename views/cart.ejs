@@ -65,9 +65,7 @@
         <button type="submit" class="btn btn-danger">Clear cart</button>
       </form>
       <% if (user) { %>
-        <form method="POST" action="/cart/checkout">
-          <button type="submit" class="btn btn-success">Checkout</button>
-        </form>
+        <a href="/cart/checkout" class="btn btn-success">Checkout</a>
       <% } else { %>
         <a href="/users/login" class="btn btn-success">Login to Checkout</a>
       <% } %>

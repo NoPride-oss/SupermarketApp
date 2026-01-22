@@ -9,6 +9,8 @@ const productRoutes = require('./routes/productRoutes');
 const userRoutes = require('./routes/userRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const cartRoutes = require('./routes/cartRoutes');
+const paypal = require('./services/paypal');
+
 
 const app = express();
 
@@ -89,8 +91,44 @@ cartRouter.post('/add', require('./controllers/CartItemsController').add);
 cartRouter.post('/update', require('./controllers/CartItemsController').update);
 cartRouter.post('/remove', require('./controllers/CartItemsController').remove);
 cartRouter.post('/clear', require('./controllers/CartItemsController').clear);
+cartRouter.get('/checkout', isAuthenticated, require('./controllers/CartItemsController').showCheckout);
 cartRouter.post('/checkout', isAuthenticated, require('./controllers/CartItemsController').checkout);
 app.use('/cart', cartRouter);
+
+// PayPal API endpoints
+// PayPal: Create Order
+app.post('/api/paypal/create-order', async (req, res) => {
+  try {
+    const { amount } = req.body;
+    const order = await paypal.createOrder(amount);
+    if (order && order.id) {
+      res.json({ id: order.id });
+    } else {
+      res.status(500).json({ error: 'Failed to create PayPal order', details: order });
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create PayPal order', message: err.message });
+  }
+});
+
+// PayPal: Capture Order
+app.post('/api/paypal/capture-order', async (req, res) => {
+  try {
+    const { orderID } = req.body;
+    const capture = await paypal.captureOrder(orderID);
+console.log('PayPal captureOrder response:', capture);
+
+    if (capture.status === "COMPLETED") {
+      // Call your pay method, passing transaction details and user info
+      await FinesController.pay(req, res, capture);
+    } else {
+      res.status(400).json({ error: 'Payment not completed', details: capture });
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to capture PayPal order', message: err.message });
+  }
+});
+
 
 app.get('/', (req, res) => res.redirect('/products'));
 

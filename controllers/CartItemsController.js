@@ -101,6 +101,16 @@ const CartController = {
     setFlash(req, 'success', 'Cart cleared');
     res.redirect('/cart');
   },
+  showCheckout(req, res) {
+    const userId = req.session.user && req.session.user.userId;
+    if (!userId) return res.status(401).send('Unauthorized');
+    const cart = req.session.cart || [];
+    if (!cart.length) {
+      setFlash(req, 'error', 'Your cart is empty');
+      return res.redirect('/cart');
+    }
+    res.render('checkout', { cart, user: req.session.user, paypalClientId: process.env.PAYPAL_CLIENT_ID || '' });
+  },
   checkout(req, res) {
     const userId = req.session.user && req.session.user.userId;
     if (!userId) return res.status(401).send('Unauthorized');
