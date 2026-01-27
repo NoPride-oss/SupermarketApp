@@ -4,43 +4,338 @@
   <meta charset="utf-8">
   <title>Checkout</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    body {
+      background-color: #f8f9fa;
+    }
+    .page-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 40px 0;
+      margin-bottom: 30px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .page-header h1 {
+      font-weight: 700;
+      margin: 0;
+    }
+    .checkout-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 30px;
+      margin-bottom: 30px;
+    }
+    @media (max-width: 992px) {
+      .checkout-container {
+        grid-template-columns: 1fr;
+      }
+    }
+    .section-card {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .section-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #333;
+      margin-bottom: 25px;
+      padding-bottom: 15px;
+      border-bottom: 3px solid #667eea;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-title i {
+      color: #667eea;
+      font-size: 24px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    .form-group label {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    .form-control, .form-select {
+      border: 2px solid #e9ecef;
+      border-radius: 8px;
+      padding: 12px 15px;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+    .form-control:focus, .form-select:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+    }
+    .order-summary {
+      background: #f8f9fa;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 25px;
+    }
+    .summary-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid #dee2e6;
+      font-size: 14px;
+    }
+    .summary-item:last-child {
+      border-bottom: none;
+      padding-top: 15px;
+      padding-bottom: 0;
+      font-weight: 700;
+      font-size: 18px;
+      color: #667eea;
+    }
+    .payment-method-title {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 15px;
+      margin-top: 25px;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    #paypal-buttons {
+      margin: 20px 0;
+    }
+    .cart-table {
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 30px;
+    }
+    .cart-table table {
+      margin-bottom: 0;
+    }
+    .cart-table thead th {
+      background-color: #f8f9fa;
+      border-bottom: 2px solid #dee2e6;
+      font-weight: 600;
+      color: #667eea;
+      text-transform: uppercase;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+      padding: 15px;
+    }
+    .cart-table tbody td {
+      padding: 15px;
+      vertical-align: middle;
+      border-bottom: 1px solid #dee2e6;
+    }
+    .cart-table tbody tr:hover {
+      background-color: #f8f9fa;
+    }
+    .back-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #667eea;
+      text-decoration: none;
+      font-weight: 500;
+      transition: all 0.3s;
+      margin-bottom: 20px;
+    }
+    .back-button:hover {
+      color: #764ba2;
+      transform: translateX(-5px);
+    }
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      background: white;
+      border-radius: 12px;
+    }
+    .empty-state i {
+      font-size: 80px;
+      color: #ddd;
+      margin-bottom: 20px;
+    }
+    .empty-state p {
+      color: #999;
+      font-size: 18px;
+    }
+    .warning-box {
+      background-color: #fff3cd;
+      border-left: 4px solid #ffc107;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+      color: #856404;
+    }
+    .warning-box i {
+      margin-right: 10px;
+    }
+  </style>
 </head>
 <body>
   <%- include('partials/navbar', { user: user }) %>
-  <main class="container my-5">
-    <h3>Checkout</h3>
+
+  <!-- Page Header -->
+  <div class="page-header">
+    <div class="container">
+      <h1><i class="fas fa-credit-card"></i> Secure Checkout</h1>
+      <p class="mb-0">Complete your purchase with confidence</p>
+    </div>
+  </div>
+
+  <main class="container my-4">
+    <a href="/cart" class="back-button">
+      <i class="fas fa-arrow-left"></i> Back to Cart
+    </a>
+
     <% if (!paypalClientId || paypalClientId.trim() === '') { %>
-      <div class="alert alert-warning">PayPal is not configured. Please set <strong>PAYPAL_CLIENT_ID</strong>, <strong>PAYPAL_CLIENT_SECRET</strong>, and <strong>PAYPAL_API</strong> in your <code>.env</code> and restart the server.</div>
-      <div class="mb-3"><strong>Current paypalClientId:</strong> <%= paypalClientId || '(empty)' %></div>
+      <div class="warning-box">
+        <i class="fas fa-exclamation-triangle"></i>
+        <strong>Warning:</strong> PayPal is not configured. Please set <strong>PAYPAL_CLIENT_ID</strong>, <strong>PAYPAL_CLIENT_SECRET</strong>, and <strong>PAYPAL_API</strong> in your <code>.env</code> file and restart the server.
+      </div>
     <% } %>
+
     <% if (!cart || cart.length === 0) { %>
-      <p>Your cart is empty.</p>
+      <div class="empty-state">
+        <i class="fas fa-inbox"></i>
+        <p>Your cart is empty</p>
+        <a href="/products" class="btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin-top: 20px;">
+          <i class="fas fa-shopping-bag"></i> Continue Shopping
+        </a>
+      </div>
     <% } else { %>
-      <div class="table-responsive">
+
+      <!-- Order Items Summary -->
+      <div class="cart-table">
         <table class="table">
           <thead>
-            <tr><th>Product</th><th>Qty</th><th>Price</th><th>Total</th></tr>
+            <tr>
+              <th><i class="fas fa-box"></i> Product</th>
+              <th style="text-align: center;"><i class="fas fa-cubes"></i> Qty</th>
+              <th style="text-align: right;"><i class="fas fa-dollar-sign"></i> Price</th>
+              <th style="text-align: right;"><i class="fas fa-calculator"></i> Total</th>
+            </tr>
           </thead>
           <tbody>
             <% cart.forEach(function(i){ %>
               <tr>
-                <td><%= i.name %></td>
-                <td><%= i.quantity %></td>
-                <td>$<%= Number(i.price).toFixed(2) %></td>
-                <td>$<%= (Number(i.price) * Number(i.quantity)).toFixed(2) %></td>
+                <td><strong><%= i.name %></strong></td>
+                <td style="text-align: center;"><%= i.quantity %></td>
+                <td style="text-align: right;">$<%= Number(i.price).toFixed(2) %></td>
+                <td style="text-align: right;"><strong>$<%= (Number(i.price) * Number(i.quantity)).toFixed(2) %></strong></td>
               </tr>
             <% }) %>
           </tbody>
-          <tfoot>
-            <tr>
-              <td colspan="3" class="text-end"><strong>Total</strong></td>
-              <td><strong>$<%= cart.reduce((s,i)=>s+(Number(i.price)*Number(i.quantity)),0).toFixed(2) %></strong></td>
-            </tr>
-          </tfoot>
         </table>
       </div>
-      <div id="paypal-buttons" class="my-3"></div>
-      <a href="/cart" class="btn btn-secondary">Back to Cart</a>
+
+      <!-- Two Column Layout -->
+      <div class="checkout-container">
+        
+        <!-- Left Column: Delivery Information -->
+        <div class="section-card">
+          <div class="section-title">
+            <i class="fas fa-map-marker-alt"></i> Delivery Address
+          </div>
+
+          <form id="deliveryForm">
+            <div class="form-group">
+              <label for="firstName">First Name *</label>
+              <input type="text" class="form-control" id="firstName" name="firstName" required>
+            </div>
+
+            <div class="form-group">
+              <label for="lastName">Last Name *</label>
+              <input type="text" class="form-control" id="lastName" name="lastName" required>
+            </div>
+
+            <div class="form-group">
+              <label for="email">Email Address *</label>
+              <input type="email" class="form-control" id="email" name="email" value="<%= user.email %>" required>
+            </div>
+
+            <div class="form-group">
+              <label for="phone">Phone Number *</label>
+              <input type="tel" class="form-control" id="phone" name="phone" placeholder="+1 (555) 000-0000" required>
+            </div>
+
+            <div class="form-group">
+              <label for="address">Street Address *</label>
+              <input type="text" class="form-control" id="address" name="address" placeholder="123 Main Street" required>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="city">City *</label>
+                <input type="text" class="form-control" id="city" name="city" required>
+              </div>
+              <div class="form-group">
+                <label for="state">State/Province *</label>
+                <input type="text" class="form-control" id="state" name="state" required>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="postalCode">Postal Code *</label>
+                <input type="text" class="form-control" id="postalCode" name="postalCode" required>
+              </div>
+              <div class="form-group">
+                <label for="country">Country *</label>
+                <input type="text" class="form-control" id="country" name="country" value="Singapore" required>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="notes">Delivery Notes (Optional)</label>
+              <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Any special instructions..."></textarea>
+            </div>
+          </form>
+        </div>
+
+        <!-- Right Column: Order Summary & Payment -->
+        <div class="section-card">
+          <div class="section-title">
+            <i class="fas fa-receipt"></i> Order Summary
+          </div>
+
+          <div class="order-summary">
+            <div class="summary-item">
+              <span>Subtotal:</span>
+              <span>$<%= cart.reduce((s,i)=>s+(Number(i.price)*Number(i.quantity)),0).toFixed(2) %></span>
+            </div>
+            <div class="summary-item">
+              <span>Shipping:</span>
+              <span>FREE</span>
+            </div>
+            <div class="summary-item">
+              <span>Tax:</span>
+              <span>$0.00</span>
+            </div>
+            <div class="summary-item">
+              <span>Total:</span>
+              <span>$<%= cart.reduce((s,i)=>s+(Number(i.price)*Number(i.quantity)),0).toFixed(2) %></span>
+            </div>
+          </div>
+
+          <div class="payment-method-title">Payment Method</div>
+          <div id="paypal-buttons" class="my-4"></div>
+
+          <div style="text-align: center; color: #999; font-size: 12px; margin-top: 20px;">
+            <i class="fas fa-lock"></i> Your payment information is secure and encrypted
+          </div>
+        </div>
+
+      </div>
+
     <% } %>
   </main>
 
@@ -53,9 +348,10 @@
       // Calculate cart total from DOM
       function calculateCartTotal() {
         let total = 0;
-        const tfoot = document.querySelector('tfoot tr td:last-child strong');
-        if (tfoot) {
-          const totalText = tfoot.textContent.replace('$', '').trim();
+        const summaryItems = document.querySelectorAll('.summary-item');
+        if (summaryItems.length > 0) {
+          const lastItem = summaryItems[summaryItems.length - 1];
+          const totalText = lastItem.textContent.split('$')[1].trim();
           total = parseFloat(totalText);
         }
         return total;
@@ -101,5 +397,7 @@
       }).render('#paypal-buttons');
     </script>
   <% } %>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
