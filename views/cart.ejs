@@ -4,74 +4,283 @@
   <meta charset="utf-8">
   <title>Your Cart</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    body {
+      background-color: #f8f9fa;
+    }
+    .page-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 40px 0;
+      margin-bottom: 30px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .page-header h1 {
+      font-weight: 700;
+      margin: 0;
+    }
+    .cart-container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    .table {
+      margin-bottom: 0;
+    }
+    .table thead th {
+      background-color: #f8f9fa;
+      border-bottom: 2px solid #dee2e6;
+      font-weight: 600;
+      color: #667eea;
+      text-transform: uppercase;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+      padding: 15px;
+    }
+    .table tbody td {
+      padding: 15px;
+      vertical-align: middle;
+      border-bottom: 1px solid #dee2e6;
+    }
+    .table tbody tr:hover {
+      background-color: #f8f9fa;
+    }
+    .product-name {
+      font-weight: 500;
+      color: #333;
+    }
+    .product-price {
+      color: #667eea;
+      font-weight: 600;
+    }
+    .quantity-control {
+      max-width: 120px;
+    }
+    .quantity-control input {
+      text-align: center;
+      border-radius: 6px;
+    }
+    .btn-update {
+      background-color: #0dcaf0;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .btn-update:hover {
+      background-color: #0a9db0;
+      color: white;
+    }
+    .btn-remove {
+      background-color: #f8d7da;
+      color: #721c24;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .btn-remove:hover {
+      background-color: #f5c6cb;
+      color: #721c24;
+    }
+    .subtotal-section {
+      background-color: #f8f9fa;
+      padding: 20px 15px;
+      text-align: right;
+    }
+    .subtotal-section th {
+      color: #667eea;
+      font-weight: 600;
+    }
+    .subtotal-amount {
+      color: #667eea;
+      font-weight: 700;
+      font-size: 18px;
+    }
+    .empty-cart {
+      text-align: center;
+      padding: 60px 20px;
+    }
+    .empty-cart i {
+      font-size: 80px;
+      color: #ddd;
+      margin-bottom: 20px;
+    }
+    .empty-cart p {
+      color: #999;
+      font-size: 18px;
+    }
+    .action-buttons {
+      display: flex;
+      gap: 15px;
+      margin-top: 30px;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    .btn-clear {
+      background-color: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 24px;
+      font-weight: 500;
+      transition: all 0.3s;
+    }
+    .btn-clear:hover {
+      background-color: #c82333;
+      color: white;
+    }
+    .btn-checkout {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 40px;
+      font-weight: 500;
+      transition: all 0.3s;
+    }
+    .btn-checkout:hover {
+      color: white;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    .btn-login {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 40px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.3s;
+      display: inline-block;
+    }
+    .btn-login:hover {
+      color: white;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+  </style>
 </head>
 <body>
 <%- include('partials/navbar', { user: user }) %>
-<main class="container my-5">
-  <h3 class="mb-4">Your Cart</h3>
-  <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
-  <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+
+<!-- Page Header -->
+<div class="page-header">
+  <div class="container">
+    <h1><i class="fas fa-shopping-cart"></i> Your Shopping Cart</h1>
+  </div>
+</div>
+
+<main class="container my-4">
+  <!-- Messages -->
+  <% if (success) { %>
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+      <i class="fas fa-check-circle"></i> <%= success %>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  <% } %>
+  <% if (error) { %>
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+      <i class="fas fa-exclamation-circle"></i> <%= error %>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  <% } %>
 
   <% if (!cart || cart.length === 0) { %>
-    <p>Your cart is empty.</p>
-  <% } else { %>
-    <div class="table-responsive">
-      <table class="table align-middle">
-        <thead>
-          <tr>
-            <th>Product</th>
-            <th>Price</th>
-            <th style="width:140px;">Quantity</th>
-            <th>Total</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <% cart.forEach(function(item) { %>
-            <tr>
-              <td><%= item.name %></td>
-              <td>$<%= Number(item.price).toFixed(2) %></td>
-              <td>
-                <form method="POST" action="/cart/update" class="d-flex align-items-center gap-2">
-                  <input type="hidden" name="productId" value="<%= item.productId %>">
-                  <input type="number" name="quantity" min="1" value="<%= item.quantity %>" class="form-control form-control-sm" style="width:80px;">
-                  <button type="submit" class="btn btn-primary btn-sm">Update</button>
-                </form>
-              </td>
-              <td>$<%= Number(item.price * item.quantity).toFixed(2) %></td>
-              <td>
-                <form method="POST" action="/cart/remove">
-                  <input type="hidden" name="productId" value="<%= item.productId %>">
-                  <button type="submit" class="btn btn-outline-danger btn-sm">Remove</button>
-                </form>
-              </td>
-            </tr>
-          <% }) %>
-        </tbody>
-        <tfoot>
-          <tr>
-            <th colspan="3" class="text-end">Subtotal</th>
-            <th>
-              $<%= cart.reduce((sum, i) => sum + (Number(i.price) * Number(i.quantity)), 0).toFixed(2) %>
-            </th>
-            <th></th>
-          </tr>
-        </tfoot>
-      </table>
+    <div class="cart-container">
+      <div class="empty-cart">
+        <i class="fas fa-inbox"></i>
+        <p>Your cart is empty</p>
+        <a href="/products" class="btn btn-checkout mt-4">
+          <i class="fas fa-shopping-bag"></i> Continue Shopping
+        </a>
+      </div>
     </div>
-    <div class="d-flex justify-content-between">
+  <% } else { %>
+    <div class="cart-container">
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th><i class="fas fa-box"></i> Product</th>
+              <th><i class="fas fa-dollar-sign"></i> Price</th>
+              <th style="width:200px;"><i class="fas fa-cubes"></i> Quantity</th>
+              <th><i class="fas fa-calculator"></i> Total</th>
+              <th><i class="fas fa-trash"></i> Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% cart.forEach(function(item) { %>
+              <tr>
+                <td><span class="product-name"><%= item.name %></span></td>
+                <td><span class="product-price">$<%= Number(item.price).toFixed(2) %></span></td>
+                <td>
+                  <form method="POST" action="/cart/update" class="d-flex gap-2 quantity-control">
+                    <input type="hidden" name="productId" value="<%= item.productId %>">
+                    <input type="number" name="quantity" min="1" value="<%= item.quantity %>" class="form-control form-control-sm">
+                    <button type="submit" class="btn btn-update">Update</button>
+                  </form>
+                </td>
+                <td><strong class="product-price">$<%= Number(item.price * item.quantity).toFixed(2) %></strong></td>
+                <td>
+                  <form method="POST" action="/cart/remove" style="display: inline;">
+                    <input type="hidden" name="productId" value="<%= item.productId %>">
+                    <button type="submit" class="btn btn-remove">
+                      <i class="fas fa-times"></i> Remove
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2"></td>
+              <td colspan="2">
+                <div class="subtotal-section">
+                  <table class="w-100" style="border: none;">
+                    <tr>
+                      <th>Subtotal:</th>
+                      <td class="subtotal-amount">
+                        $<%= cart.reduce((sum, i) => sum + (Number(i.price) * Number(i.quantity)), 0).toFixed(2) %>
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+              </td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="action-buttons">
       <form method="POST" action="/cart/clear">
-        <button type="submit" class="btn btn-danger">Clear cart</button>
+        <button type="submit" class="btn btn-clear">
+          <i class="fas fa-trash-alt"></i> Clear Cart
+        </button>
       </form>
       <% if (user) { %>
-        <a href="/cart/checkout" class="btn btn-success">Checkout</a>
+        <a href="/cart/checkout" class="btn btn-checkout">
+          <i class="fas fa-credit-card"></i> Proceed to Checkout
+        </a>
       <% } else { %>
-        <a href="/users/login" class="btn btn-success">Login to Checkout</a>
+        <a href="/users/login" class="btn btn-login">
+          <i class="fas fa-sign-in-alt"></i> Login to Checkout
+        </a>
       <% } %>
     </div>
   <% } %>
 </main>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

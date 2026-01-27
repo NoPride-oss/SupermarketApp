@@ -24,10 +24,10 @@ const AdminController = {
 
       // Attempt to load orders if the table exists; join to users for name
       db.query(
-        `SELECT o.id, o.total, o.createdat, o.status, u.username as userName
+        `SELECT o.id, o.total, o.createdat, o.status, u.email as userName
          FROM orders o
          LEFT JOIN users u ON o.userid = u.id
-         ORDER BY o.createdat DESC LIMIT 100`,
+         ORDER BY o.createdat DESC`,
         (oErr, orders) => {
           if (oErr) {
             // If orders table doesn't exist or query fails, warn and continue with empty list
@@ -36,7 +36,13 @@ const AdminController = {
           }
           const success = consumeFlash(req, 'success');
           const error = consumeFlash(req, 'error');
-          res.render('adminDashboard', { users: users || [], orders: orders || [], user: req.session.user, success, error });
+          res.render('adminDashboard', { 
+            users: users || [], 
+            orders: orders || [], 
+            user: req.session.user, 
+            success, 
+            error 
+          });
         }
       );
     });

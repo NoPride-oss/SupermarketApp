@@ -34,7 +34,12 @@ const UsersController = {
           role: user.role,
           email: user.email,
         };
-        res.redirect("/");
+        // Redirect based on user role
+        if (user.role === 'admin') {
+          res.redirect("/admin");
+        } else {
+          res.redirect("/products");
+        }
       } else {
         res.render("login", {
           user: null,

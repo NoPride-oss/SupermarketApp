@@ -50,26 +50,53 @@
     </script>
     <script src="https://www.paypal.com/sdk/js?client-id=<%= paypalClientId %>&currency=SGD"></script>
     <script>
+      // Calculate cart total from DOM
+      function calculateCartTotal() {
+        let total = 0;
+        const tfoot = document.querySelector('tfoot tr td:last-child strong');
+        if (tfoot) {
+          const totalText = tfoot.textContent.replace('$', '').trim();
+          total = parseFloat(totalText);
+        }
+        return total;
+      }
+      
+      const cartTotal = calculateCartTotal();
+      console.log('Cart total calculated:', cartTotal, 'Type:', typeof cartTotal);
+      
       // Create order on the server
       paypal.Buttons({
         createOrder: function() {
+          console.log('Creating order with amount:', cartTotal);
           return fetch('/api/paypal/create-order', {
             method: 'post',
-            headers: { 'Content-Type': 'application/json' }
-          }).then(function(res) { return res.json(); }).then(function(data) { return data.id; });
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: cartTotal })
+          }).then(function(res) { return res.json(); }).then(function(data) { 
+            console.log('Create order response:', data);
+            if (data.error) {
+              alert('Error creating order: ' + data.error);
+              throw new Error(data.error);
+            }
+            return data.id; 
+          });
         },
         onApprove: function(data) {
           return fetch('/api/paypal/capture-order', {
             method: 'post',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orderId: data.orderID })
+            body: JSON.stringify({ orderID: data.orderID })
           }).then(function(res){ return res.json(); }).then(function(result){
             if (result.success) {
               window.location.href = '/orders';
             } else {
-              alert('Payment processed but order failed to save');
+              alert('Payment processed but order failed to save: ' + (result.error || 'Unknown error'));
             }
           });
+        },
+        onError: function(err) {
+          alert('Payment error: ' + err);
+          console.error('PayPal error:', err);
         }
       }).render('#paypal-buttons');
     </script>

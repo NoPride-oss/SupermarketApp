@@ -18,6 +18,7 @@ const app = express();
 app.set('view engine', 'ejs');
 app.use(express.static('public'));
 app.use(bodyParser.urlencoded({ extended: false }));
+app.use(express.json()); // Add JSON parser for PayPal API calls
 
 // Configure multer for image uploads to public/images
 const storage = multer.diskStorage({
@@ -100,13 +101,23 @@ app.use('/cart', cartRouter);
 app.post('/api/paypal/create-order', async (req, res) => {
   try {
     const { amount } = req.body;
-    const order = await paypal.createOrder(amount);
+    console.log('Received amount:', amount, 'Type:', typeof amount);
+    
+    const numAmount = Number(amount);
+    console.log('Converted amount:', numAmount, 'Type:', typeof numAmount, 'isNaN:', isNaN(numAmount));
+    
+    if (isNaN(numAmount) || numAmount <= 0) {
+      console.error('Invalid amount received:', amount, 'numAmount:', numAmount);
+      return res.status(400).json({ error: 'Invalid amount', received: amount, numAmount: numAmount });
+    }
+    const order = await paypal.createOrder(numAmount);
     if (order && order.id) {
       res.json({ id: order.id });
     } else {
       res.status(500).json({ error: 'Failed to create PayPal order', details: order });
     }
   } catch (err) {
+    console.error('PayPal create-order error:', err.message);
     res.status(500).json({ error: 'Failed to create PayPal order', message: err.message });
   }
 });
@@ -115,16 +126,44 @@ app.post('/api/paypal/create-order', async (req, res) => {
 app.post('/api/paypal/capture-order', async (req, res) => {
   try {
     const { orderID } = req.body;
+    console.log('Session:', req.session);
+    console.log('Session user:', req.session?.user);
+    console.log('Session user ID:', req.session?.user?.userId);
+    
+    const userId = req.session?.user?.userId;
+    if (!userId) {
+      console.error('Missing userId in session');
+      return res.status(401).json({ error: 'Unauthorized', debug: { sessionExists: !!req.session, userExists: !!req.session?.user, userIdExists: !!req.session?.user?.userId } });
+    }
+    if (!orderID) {
+      return res.status(400).json({ error: 'Missing orderID' });
+    }
     const capture = await paypal.captureOrder(orderID);
-console.log('PayPal captureOrder response:', capture);
+    console.log('PayPal captureOrder response:', capture);
 
     if (capture.status === "COMPLETED") {
-      // Call your pay method, passing transaction details and user info
-      await FinesController.pay(req, res, capture);
+      // Create order in database with PayPal transaction details
+      const cart = req.session.cart || [];
+      if (!cart.length) {
+        return res.status(400).json({ error: 'Cart is empty' });
+      }
+      const items = cart.map(i => ({ productId: i.productId, quantity: Number(i.quantity), price: Number(i.price) }));
+      const total = items.reduce((s, it) => s + (it.price * it.quantity), 0);
+      
+      const Orders = require('./models/Orders');
+      Orders.createOrder(userId, items, total, (err, result) => {
+        if (err) {
+          console.error('Order creation error:', err);
+          return res.status(500).json({ error: 'Order creation failed', message: err.message });
+        }
+        req.session.cart = [];
+        res.json({ success: true, message: 'Payment completed and order created', orderId: result });
+      });
     } else {
-      res.status(400).json({ error: 'Payment not completed', details: capture });
+      res.status(400).json({ error: 'Payment not completed', status: capture.status });
     }
   } catch (err) {
+    console.error('PayPal capture-order error:', err.message);
     res.status(500).json({ error: 'Failed to capture PayPal order', message: err.message });
   }
 });

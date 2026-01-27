@@ -14,12 +14,20 @@ async function getAccessToken() {
     },
     body: 'grant_type=client_credentials'
   });
+  if (!response.ok) {
+    throw new Error(`PayPal authentication failed: ${response.statusText}`);
+  }
   const data = await response.json();
+  if (!data.access_token) {
+    throw new Error('Failed to retrieve PayPal access token');
+  }
   return data.access_token;
 }
 
 async function createOrder(amount) {
   const accessToken = await getAccessToken();
+  // Ensure amount is a string with proper decimal places
+  const amountString = Number(amount).toFixed(2);
   const response = await fetch(`${PAYPAL_API}/v2/checkout/orders`, {
     method: 'POST',
     headers: {
@@ -31,12 +39,19 @@ async function createOrder(amount) {
       purchase_units: [{
         amount: {
           currency_code: 'SGD',
-          value: amount
+          value: amountString
         }
       }]
     })
   });
-  return await response.json();
+  if (!response.ok) {
+    throw new Error(`Failed to create PayPal order: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (data.status === 'UNPROCESSABLE_ENTITY' || !data.id) {
+    throw new Error(data.message || 'Invalid PayPal order response');
+  }
+  return data;
 }
 
 async function captureOrder(orderId) {
@@ -48,7 +63,13 @@ async function captureOrder(orderId) {
       'Authorization': `Bearer ${accessToken}`
     }
   });
+  if (!response.ok) {
+    throw new Error(`Failed to capture PayPal order: ${response.statusText}`);
+  }
   const data = await response.json();
+  if (!data.id) {
+    throw new Error(data.message || 'Failed to capture payment');
+  }
   console.log('PayPal captureOrder response:', data);
   return data;
 }
