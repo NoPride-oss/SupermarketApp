@@ -204,6 +204,12 @@ const ProductsController = {
   },
 
   addToCart(req, res) {
+    // Check if user is logged in
+    if (!req.session.user) {
+      setFlash(req, 'error', 'Please log in to add products to your cart');
+      return res.redirect('/users/login');
+    }
+    
     const productId = req.body.productId || req.body.id;
     const quantity = Number(req.body.quantity) || 1;
     Product.getById(productId, (err, product) => {
