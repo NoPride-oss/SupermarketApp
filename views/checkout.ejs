@@ -107,6 +107,29 @@
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
+    .nav-tabs {
+      border-bottom: 2px solid #e9ecef;
+    }
+    .nav-tabs .nav-link {
+      color: #999;
+      border: none;
+      font-weight: 500;
+      padding: 10px 15px;
+      transition: all 0.3s;
+      border-bottom: 3px solid transparent;
+    }
+    .nav-tabs .nav-link:hover {
+      color: #667eea;
+      border-bottom-color: #667eea;
+    }
+    .nav-tabs .nav-link.active {
+      color: #667eea;
+      background-color: transparent;
+      border-bottom-color: #667eea;
+    }
+    .nav-tabs .nav-link i {
+      margin-right: 5px;
+    }
     #paypal-buttons {
       margin: 20px 0;
     }
@@ -327,7 +350,38 @@
           </div>
 
           <div class="payment-method-title">Payment Method</div>
-          <div id="paypal-buttons" class="my-4"></div>
+          
+          <!-- Payment Method Tabs -->
+          <ul class="nav nav-tabs mb-4" id="paymentTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="paypal-tab" data-bs-toggle="tab" data-bs-target="#paypal-content" type="button" role="tab" aria-controls="paypal-content" aria-selected="true">
+                <i class="fab fa-paypal"></i> PayPal
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="nets-tab" data-bs-toggle="tab" data-bs-target="#nets-content" type="button" role="tab" aria-controls="nets-content" aria-selected="false">
+                <i class="fas fa-qrcode"></i> NETS QR
+              </button>
+            </li>
+          </ul>
+
+          <!-- Tab Content -->
+          <div class="tab-content" id="paymentTabContent">
+            <!-- PayPal Tab -->
+            <div class="tab-pane fade show active" id="paypal-content" role="tabpanel" aria-labelledby="paypal-tab">
+              <div id="paypal-buttons" class="my-4"></div>
+            </div>
+
+            <!-- NETS Tab -->
+            <div class="tab-pane fade" id="nets-content" role="tabpanel" aria-labelledby="nets-tab">
+              <button type="button" id="nets-checkout-btn" class="btn btn-primary w-100" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: 12px; font-weight: 500; border-radius: 8px;">
+                <i class="fas fa-qrcode"></i> Generate NETS QR Code
+              </button>
+              <p style="text-align: center; margin-top: 15px; font-size: 13px; color: #999;">
+                <i class="fas fa-info-circle"></i> Scan the QR code with your bank app to pay
+              </p>
+            </div>
+          </div>
 
           <div style="text-align: center; color: #999; font-size: 12px; margin-top: 20px;">
             <i class="fas fa-lock"></i> Your payment information is secure and encrypted
@@ -395,6 +449,53 @@
           console.error('PayPal error:', err);
         }
       }).render('#paypal-buttons');
+
+      // NETS QR Code Handler
+      const netsCheckoutBtn = document.getElementById('nets-checkout-btn');
+      if (netsCheckoutBtn) {
+        netsCheckoutBtn.addEventListener('click', async function() {
+          netsCheckoutBtn.disabled = true;
+          netsCheckoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating QR Code...';
+          
+          try {
+            const response = await fetch('/generateNETSQR', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ cartTotal: cartTotal })
+            });
+
+            if (response.ok) {
+              // Redirect to NETS QR display page
+              const html = await response.text();
+              document.open();
+              document.write(html);
+              document.close();
+            } else {
+              // Parse error response
+              let errorMsg = 'Failed to generate QR code';
+              const contentType = response.headers.get('content-type');
+              
+              if (contentType && contentType.includes('application/json')) {
+                try {
+                  const error = await response.json();
+                  errorMsg = error.error || error.message || errorMsg;
+                } catch (e) {
+                  errorMsg = 'Server error';
+                }
+              }
+              
+              alert('Error: ' + errorMsg);
+              netsCheckoutBtn.disabled = false;
+              netsCheckoutBtn.innerHTML = '<i class="fas fa-qrcode"></i> Generate NETS QR Code';
+            }
+          } catch (err) {
+            console.error('NETS checkout error:', err);
+            alert('Error: ' + err.message);
+            netsCheckoutBtn.disabled = false;
+            netsCheckoutBtn.innerHTML = '<i class="fas fa-qrcode"></i> Generate NETS QR Code';
+          }
+        });
+      }
     </script>
   <% } %>
 

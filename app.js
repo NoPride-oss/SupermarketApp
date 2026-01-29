@@ -10,6 +10,7 @@ const userRoutes = require('./routes/userRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const paypal = require('./services/paypal');
+const nets = require('./services/nets');
 
 
 const app = express();
@@ -166,6 +167,68 @@ app.post('/api/paypal/capture-order', async (req, res) => {
     console.error('PayPal capture-order error:', err.message);
     res.status(500).json({ error: 'Failed to capture PayPal order', message: err.message });
   }
+});
+
+// NETS QR Payment endpoints
+app.post('/generateNETSQR', nets.generateQrCode);
+
+// NETS Payment Status Polling (Server-Sent Events)
+app.get('/sse/payment-status/:txnRetrievalRef', nets.queryPaymentStatus);
+
+// NETS Success page
+app.get('/nets-qr/success', (req, res) => {
+  res.render('netsSuccess', { message: 'Transaction Successful!' });
+});
+
+// NETS Fail page
+app.get('/nets-qr/fail', (req, res) => {
+  res.render('netsFail', { message: 'Transaction Failed. Please try again.' });
+});
+
+// NETS Payment Success Handler
+app.get('/nets/success', isAuthenticated, async (req, res) => {
+  try {
+    const { txnRetrievalRef } = req.query;
+    const userId = req.session?.user?.userId;
+    
+    if (!userId) {
+      return res.status(401).send('Unauthorized');
+    }
+    
+    // Query final payment status
+    const statusResponse = await nets.queryPaymentStatus(txnRetrievalRef);
+    
+    if (statusResponse.success) {
+      // Create order in database
+      const cart = req.session.cart || [];
+      if (!cart.length) {
+        return res.status(400).send('Cart is empty');
+      }
+      
+      const items = cart.map(i => ({ productId: i.productId, quantity: Number(i.quantity), price: Number(i.price) }));
+      const total = items.reduce((s, it) => s + (it.price * it.quantity), 0);
+      
+      const Orders = require('./models/Orders');
+      Orders.createOrder(userId, items, total, (err, result) => {
+        if (err) {
+          console.error('Order creation error:', err);
+          return res.status(500).send('Order creation failed');
+        }
+        req.session.cart = [];
+        res.redirect('/orders');
+      });
+    } else {
+      res.status(400).send('Payment verification failed');
+    }
+  } catch (err) {
+    console.error('NETS success handler error:', err.message);
+    res.status(500).send('Error processing payment');
+  }
+});
+
+// NETS Payment Failure Handler
+app.get('/nets/fail', isAuthenticated, (req, res) => {
+  res.render('netsFail', { message: 'Payment failed. Please try again.' });
 });
 
 
