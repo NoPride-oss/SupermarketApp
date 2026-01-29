@@ -2,7 +2,8 @@ const db = require('../db');
 
 const Orders = {
   // items: [{ productId, quantity, price }]
-  createOrder(userId, items, total, callback) {
+  // paypalCaptureId: optional PayPal capture ID for refunds
+  createOrder(userId, items, total, callback, paypalCaptureId = null) {
     if (!items || !items.length) return callback(new Error('No items'));
 
     db.beginTransaction(err => {
@@ -10,7 +11,7 @@ const Orders = {
 
       const createdAt = new Date();
       // Note: schema uses `user_id` and `created_at` column names
-      db.query('INSERT INTO orders (user_id, total, created_at) VALUES (?, ?, ?)', [userId, total, createdAt], (err, result) => {
+      db.query('INSERT INTO orders (user_id, total, created_at, paypal_capture_id) VALUES (?, ?, ?, ?)', [userId, total, createdAt, paypalCaptureId], (err, result) => {
         if (err) {
           return db.rollback(() => callback(err));
         }
@@ -41,6 +42,13 @@ const Orders = {
         }
         next();
       });
+    });
+  },
+
+  getById(orderId, callback) {
+    db.query('SELECT * FROM orders WHERE id = ?', [orderId], (err, results) => {
+      if (err) return callback(err);
+      callback(null, results ? results[0] : null);
     });
   },
 

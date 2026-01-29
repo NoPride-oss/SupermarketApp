@@ -74,4 +74,35 @@ async function captureOrder(orderId) {
   return data;
 }
 
-module.exports = { createOrder, captureOrder };
+async function refundCapture(captureId, amount) {
+  // amount is optional - if not provided, full refund is issued
+  const accessToken = await getAccessToken();
+  
+  const body = {};
+  if (amount) {
+    body.amount = {
+      currency_code: 'SGD',
+      value: Number(amount).toFixed(2)
+    };
+  }
+  
+  const response = await fetch(`${PAYPAL_API}/v2/payments/captures/${captureId}/refund`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`
+    },
+    body: JSON.stringify(body)
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Failed to process refund: ${errorData.message || response.statusText}`);
+  }
+  
+  const data = await response.json();
+  console.log('PayPal refund response:', data);
+  return data;
+}
+
+module.exports = { createOrder, captureOrder, refundCapture };

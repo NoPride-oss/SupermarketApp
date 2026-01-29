@@ -31,21 +31,40 @@ const OrderController = {
     if (!userId) return res.status(401).send('Unauthorized');
     const orderId = req.params.id;
     
-    // Check if we came from a user's orders page (admin viewing a specific user's orders)
-    const referrer = req.get('referer') || '';
-    let backUrl = '/orders'; // default back to current user's orders
-    
-    // If referrer contains /users/ and /orders, it's from admin viewing user's orders
-    if (referrer.includes('/users/') && referrer.includes('/orders')) {
-      const match = referrer.match(/\/users\/(\d+)\/orders/);
-      if (match && match[1]) {
-        backUrl = `/users/${match[1]}/orders`;
+    // Get order details first
+    Orders.getById(orderId, (err, order) => {
+      if (err || !order) {
+        return res.status(404).send('Order not found');
       }
-    }
-    
-    Orders.getItems(orderId, (err, items) => {
-      if (err) return res.status(500).send('Error loading order items');
-      res.render('order_details', { items, user: req.session.user, backUrl });
+      
+      // Check authorization: user can view own order, admins can view any
+      if (order.user_id !== userId && req.session.user.role !== 'admin') {
+        return res.status(403).send('Unauthorized');
+      }
+      
+      // Get order items
+      Orders.getItems(orderId, (itemErr, items) => {
+        if (itemErr) return res.status(500).send('Error loading order items');
+        
+        // Get user info for display
+        const db = require('../db');
+        db.query('SELECT username, email FROM users WHERE id = ?', [order.user_id], (userErr, userResults) => {
+          const orderData = {
+            ...order,
+            username: userResults && userResults[0] ? userResults[0].username : 'Unknown',
+            email: userResults && userResults[0] ? userResults[0].email : 'N/A'
+          };
+          const message = consumeFlash(req, 'success');
+          const error = consumeFlash(req, 'error');
+          res.render('order_details', { 
+            order: orderData, 
+            items, 
+            user: req.session.user,
+            message,
+            error
+          });
+        });
+      });
     });
   },
 

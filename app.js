@@ -154,6 +154,9 @@ app.post('/api/paypal/capture-order', async (req, res) => {
       const items = cart.map(i => ({ productId: i.productId, quantity: Number(i.quantity), price: Number(i.price) }));
       const total = items.reduce((s, it) => s + (it.price * it.quantity), 0);
       
+      // Extract capture ID from PayPal response for refunds
+      const paypalCaptureId = capture.purchase_units[0]?.payments?.captures[0]?.id || null;
+      
       const Orders = require('./models/Orders');
       Orders.createOrder(userId, items, total, (err, result) => {
         if (err) {
@@ -161,14 +164,58 @@ app.post('/api/paypal/capture-order', async (req, res) => {
           return res.status(500).json({ error: 'Order creation failed', message: err.message });
         }
         req.session.cart = [];
-        res.json({ success: true, message: 'Payment completed and order created', orderId: result });
-      });
+        res.json({ success: true, message: 'Payment completed and order created', orderId: result.orderId, paypalCaptureId: paypalCaptureId });
+      }, paypalCaptureId);
     } else {
       res.status(400).json({ error: 'Payment not completed', status: capture.status });
     }
   } catch (err) {
     console.error('PayPal capture-order error:', err.message);
     res.status(500).json({ error: 'Failed to capture PayPal order', message: err.message });
+  }
+});
+
+// PayPal: Refund Payment (Admin only)
+app.post('/api/paypal/refund', isAdmin, async (req, res) => {
+  try {
+    const { captureId, amount, orderId } = req.body;
+    
+    if (!captureId) {
+      return res.status(400).json({ error: 'Missing captureId (PayPal transaction ID)' });
+    }
+    
+    console.log(`[ADMIN: ${req.session.user.userId}] Processing refund for capture ${captureId}, amount: ${amount || 'full'}`);
+    
+    const refund = await paypal.refundCapture(captureId, amount);
+    
+    if (refund.status === "COMPLETED" || refund.id) {
+      console.log('PayPal refund successful:', refund);
+      
+      // Update order with refund details if orderId provided
+      if (orderId) {
+        const db = require('./db');
+        db.query(
+          'UPDATE orders SET refund_id = ?, refund_status = ? WHERE id = ?',
+          [refund.id, refund.status, orderId],
+          (err) => {
+            if (err) console.error('Error updating order refund status:', err);
+          }
+        );
+      }
+      
+      res.json({ 
+        success: true, 
+        message: 'Refund processed successfully',
+        refundId: refund.id,
+        status: refund.status,
+        amount: refund.amount
+      });
+    } else {
+      res.status(400).json({ error: 'Refund not completed', status: refund.status });
+    }
+  } catch (err) {
+    console.error('PayPal refund error:', err.message);
+    res.status(500).json({ error: 'Failed to process refund', message: err.message });
   }
 });
 
@@ -268,6 +315,26 @@ app.get('/sse/payment-status/:txnRetrievalRef', async (req, res) => {
 });
 
 app.get('/', (req, res) => res.redirect('/products'));
+
+// Get order details (for both users and admins)
+app.get('/api/orders/:id', isAuthenticated, (req, res) => {
+  const Orders = require('./models/Orders');
+  Orders.getById(req.params.id, (err, order) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    
+    // Check authorization: user can view own order, admins can view any
+    if (order.user_id !== req.session.user.userId && req.session.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    
+    // Get order items
+    Orders.getItems(order.id, (itemErr, items) => {
+      if (itemErr) return res.status(500).json({ error: itemErr.message });
+      res.json({ order, items });
+    });
+  });
+});
 
 // Admin dashboard
 app.get('/admin', isAuthenticated, isAdmin, require('./controllers/AdminController').dashboard);
