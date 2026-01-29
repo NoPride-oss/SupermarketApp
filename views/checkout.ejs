@@ -458,7 +458,7 @@
           netsCheckoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating QR Code...';
           
           try {
-            const response = await fetch('/generateNETSQR', {
+            const response = await fetch('/api/nets-qr/generate', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ cartTotal: cartTotal })

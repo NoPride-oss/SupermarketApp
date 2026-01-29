@@ -30,6 +30,11 @@
             font-weight: 700;
             margin-bottom: 10px;
         }
+        .qr-header p {
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
         .qr-code-box {
             background: #f8f9fa;
             border-radius: 12px;
@@ -55,154 +60,16 @@
             margin: 20px 0;
             border-left: 4px solid #ffc107;
         }
+        .timer-label {
+            color: #856404;
+            font-weight: 500;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
         #timer {
             font-size: 24px;
             font-weight: 700;
             color: #856404;
-        }
-        .instructions {
-            background: #d1ecf1;
-            border-radius: 10px;
-            padding: 20px;
-            margin: 20px 0;
-            border-left: 4px solid #17a2b8;
-            text-align: left;
-        }
-        .instructions h5 {
-            color: #0c5460;
-            margin-bottom: 10px;
-        }
-        .instructions ol {
-            color: #0c5460;
-            margin: 0;
-            padding-left: 20px;
-        }
-        .instructions li {
-            margin-bottom: 8px;
-        }
-    </style>
-</head>
-<body>
-    <div class="qr-container">
-        <div class="qr-header">
-            <h1><i class="fas fa-qrcode"></i> NETS QR Payment</h1>
-            <p class="text-muted">Scan with your bank app to complete payment</p>
-        </div>
-
-        <div class="amount-display">$<%= total.toFixed(2) %></div>
-
-        <div class="qr-code-box">
-            <img src="<%= qrCodeUrl %>" alt="NETS QR Code" />
-        </div>
-
-        <div class="instructions">
-            <h5><i class="fas fa-info-circle"></i> How to pay:</h5>
-            <ol>
-                <li>Open your bank's mobile app</li>
-                <li>Select "Scan QR Code"</li>
-                <li>Point at the QR code above</li>
-                <li>Complete the payment</li>
-            </ol>
-        </div>
-
-        <div class="timer-section">
-            <small class="text-uppercase">⏱️ Time Remaining</small>
-            <div id="timer">5:00</div>
-        </div>
-
-        <a href="/cart/checkout" class="btn btn-outline-secondary mt-3">
-            <i class="fas fa-times"></i> Cancel Payment
-        </a>
-    </div>
-
-    <script>
-        let s2sNetsTxnStatus;
-
-        const txnRetrievalRef = "<%= txnRetrievalRef %>";
-        const apiKey = "<%= apiKey %>";
-        const projectId = "<%= projectId %>";
-        const url = `/sse/payment-status/${txnRetrievalRef}`;
-
-        console.log("Starting NETS payment polling for:", txnRetrievalRef);
-
-        // Initialize EventSource for real-time polling
-        s2sNetsTxnStatus = new EventSourcePolyfill(url, {
-            headers: {
-                "api-key": apiKey,
-                "project-id": projectId,
-            },
-            heartbeatTimeout: 150000,
-        });
-
-        s2sNetsTxnStatus.addEventListener("message", (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                console.log("NETS Payment Status Update:", data);
-
-                // Check for payment success
-                if (data.success) {
-                    console.log("✓ Payment successful!");
-                    if (s2sNetsTxnStatus) s2sNetsTxnStatus.close();
-                    window.location.href = `/nets-qr/success?txn_retrieval_ref=${txnRetrievalRef}`;
-                } 
-                // Check for payment failure
-                else if (data.fail) {
-                    console.log("✗ Payment failed!");
-                    if (s2sNetsTxnStatus) s2sNetsTxnStatus.close();
-                    window.location.href = `/nets-qr/fail?txn_retrieval_ref=${txnRetrievalRef}`;
-                }
-                // Still waiting for payment
-                else {
-                    console.log("Payment still pending...");
-                }
-            } catch (err) {
-                console.error("Error parsing payment status:", err);
-            }
-        });
-
-        s2sNetsTxnStatus.addEventListener("error", (event) => {
-            console.error("EventSource error:", event);
-            if (s2sNetsTxnStatus) s2sNetsTxnStatus.close();
-            window.location.href = `/nets-qr/fail?txn_retrieval_ref=${txnRetrievalRef}`;
-        });
-
-        // Countdown Timer Logic
-        const timerElement = document.getElementById("timer");
-        const countdownDuration = 300; // 5 minutes
-        let remainingTime = countdownDuration;
-
-        const updateTimer = () => {
-            const minutes = Math.floor(remainingTime / 60);
-            const seconds = remainingTime % 60;
-            timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, "0")}`;
-            remainingTime--;
-
-            if (remainingTime < 0) {
-                clearInterval(timerInterval);
-                timerElement.textContent = "Timed out";
-                timerElement.parentElement.classList.add('bg-danger', 'text-white');
-
-                if (s2sNetsTxnStatus) {
-                    s2sNetsTxnStatus.close();
-                }
-                setTimeout(() => {
-                    window.location.href = `/nets-qr/fail?txn_retrieval_ref=${txnRetrievalRef}`;
-                }, 2000);
-            }
-        };
-
-        // Start the timer
-        const timerInterval = setInterval(updateTimer, 1000);
-        updateTimer();
-
-        console.log("NETS QR Payment page loaded successfully");
-    </script>
-</body>
-</html>
-            color: #667eea;
-            font-weight: 500;
-            margin: 15px 0;
-            font-size: 14px;
         }
         .instruction-box {
             background: #d1ecf1;
@@ -217,6 +84,16 @@
         .instruction-box strong {
             display: block;
             margin-bottom: 10px;
+        }
+        .instruction-box ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .status-message {
+            color: #667eea;
+            font-weight: 500;
+            margin: 15px 0;
+            font-size: 14px;
         }
         .btn-cancel {
             background-color: #e9ecef;
@@ -251,7 +128,7 @@
         </div>
 
         <div class="amount-display">
-            $<%= total %>
+            $<%= total.toFixed(2) %>
         </div>
 
         <div class="qr-code-box">
@@ -260,7 +137,7 @@
 
         <div class="instruction-box">
             <strong>How to pay:</strong>
-            <ol style="margin: 0; padding-left: 20px;">
+            <ol>
                 <li>Open your bank's mobile app</li>
                 <li>Select "Scan QR Code"</li>
                 <li>Point at the QR code above</li>
@@ -293,9 +170,7 @@
 
     <script>
         const txnRetrievalRef = "<%= txnRetrievalRef %>";
-        const cartTotal = <%= total %>;
-        let pollCount = 0;
-        const maxPolls = 60;
+        const total = <%= total %>;
         let s2sNetsTxnStatus = null;
 
         // Timer countdown
@@ -322,7 +197,7 @@
         updateTimer();
 
         // SSE connection for payment status
-        const url = `/api/nets/payment-status/${txnRetrievalRef}`;
+        const url = `/sse/payment-status/${txnRetrievalRef}`;
 
         if (s2sNetsTxnStatus) {
             s2sNetsTxnStatus.close();
@@ -336,18 +211,22 @@
             const data = JSON.parse(event.data);
             console.log('NETS Query Response:', data);
 
-            if (data.success || (data.result?.data?.response_code === '00' && data.result?.data?.txn_status === 1)) {
+            // Only process if we have a success flag from the backend
+            if (data.success) {
                 clearInterval(timerInterval);
                 if (s2sNetsTxnStatus) s2sNetsTxnStatus.close();
                 document.getElementById('statusMessage').innerHTML = '<i class="fas fa-check-circle" style="color: #28a745;"></i> Payment successful!';
                 document.getElementById('spinnerSection').style.display = 'block';
-                setTimeout(() => window.location.href = '/orders', 2000);
-            } else if (data.fail || (data.result?.data?.response_code !== '00' || data.result?.data?.txn_status === 2)) {
+                setTimeout(() => window.location.href = '/nets-qr/success', 2000);
+            } 
+            // Only redirect to fail if we have an explicit fail flag
+            else if (data.fail) {
                 clearInterval(timerInterval);
                 if (s2sNetsTxnStatus) s2sNetsTxnStatus.close();
                 document.getElementById('statusMessage').innerHTML = '<i class="fas fa-times-circle" style="color: #dc3545;"></i> Payment failed. Please try again.';
-                setTimeout(() => window.location.href = '/cart', 3000);
+                setTimeout(() => window.location.href = '/nets-qr/fail', 3000);
             }
+            // Otherwise, payment is still pending - do nothing, let timer continue
         });
 
         s2sNetsTxnStatus.onerror = (error) => {

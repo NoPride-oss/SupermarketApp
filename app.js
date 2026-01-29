@@ -1,8 +1,12 @@
+require('dotenv').config();
+
 const express = require('express');
 const session = require('express-session');
 const bodyParser = require('body-parser');
 const multer = require('multer');
 const path = require('path');
+const netsQr= require("./services/nets");
+const axios = require('axios');
 // Use existing MySQL connection module
 const db = require('./db');
 const productRoutes = require('./routes/productRoutes');
@@ -10,7 +14,6 @@ const userRoutes = require('./routes/userRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const paypal = require('./services/paypal');
-const nets = require('./services/nets');
 
 
 const app = express();
@@ -169,68 +172,100 @@ app.post('/api/paypal/capture-order', async (req, res) => {
   }
 });
 
-// NETS QR Payment endpoints
-app.post('/generateNETSQR', nets.generateQrCode);
-
-// NETS Payment Status Polling (Server-Sent Events)
-app.get('/sse/payment-status/:txnRetrievalRef', nets.queryPaymentStatus);
-
-// NETS Success page
-app.get('/nets-qr/success', (req, res) => {
-  res.render('netsSuccess', { message: 'Transaction Successful!' });
+//NETS QR Functions
+app.post('/api/nets-qr/generate', netsQr.generateQrCode);
+app.get("/nets-qr/success", (req, res) => {
+    res.render('netsSuccess', { message: 'Transaction Successful!' });
+});
+app.get("/nets-qr/fail", (req, res) => {
+    res.render('netsFail', { message: 'Transaction Failed. Please try again.' });
 });
 
-// NETS Fail page
-app.get('/nets-qr/fail', (req, res) => {
-  res.render('netsFail', { message: 'Transaction Failed. Please try again.' });
+
+
+
+//errors
+app.get('/401', (req, res) => {
+    res.render('401', { errors: req.flash('error') });
 });
 
-// NETS Payment Success Handler
-app.get('/nets/success', isAuthenticated, async (req, res) => {
-  try {
-    const { txnRetrievalRef } = req.query;
-    const userId = req.session?.user?.userId;
-    
-    if (!userId) {
-      return res.status(401).send('Unauthorized');
-    }
-    
-    // Query final payment status
-    const statusResponse = await nets.queryPaymentStatus(txnRetrievalRef);
-    
-    if (statusResponse.success) {
-      // Create order in database
-      const cart = req.session.cart || [];
-      if (!cart.length) {
-        return res.status(400).send('Cart is empty');
-      }
-      
-      const items = cart.map(i => ({ productId: i.productId, quantity: Number(i.quantity), price: Number(i.price) }));
-      const total = items.reduce((s, it) => s + (it.price * it.quantity), 0);
-      
-      const Orders = require('./models/Orders');
-      Orders.createOrder(userId, items, total, (err, result) => {
-        if (err) {
-          console.error('Order creation error:', err);
-          return res.status(500).send('Order creation failed');
+//Endpoint in your backend which is a Server-Sent Events (SSE) endpoint that allows your frontend (browser) 
+//to receive real-time updates about the payment status of a NETS QR transaction.
+app.get('/sse/payment-status/:txnRetrievalRef', async (req, res) => {
+    res.set({
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
+    });
+
+    const txnRetrievalRef = req.params.txnRetrievalRef;
+    let pollCount = 0;
+    const maxPolls = 60; // 5 minutes if polling every 5s
+    let frontendTimeoutStatus = 0;
+
+    const interval = setInterval(async () => {
+        pollCount++;
+
+        try {
+            // Call the NETS query API
+            const response = await axios.post(
+                'https://sandbox.nets.openapipaas.com/api/v1/common/payments/nets-qr/query',
+                { txn_retrieval_ref: txnRetrievalRef, frontend_timeout_status: frontendTimeoutStatus },
+                {
+                    headers: {
+                        'api-key': process.env.API_KEY,
+                        'project-id': process.env.PROJECT_ID,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+
+            console.log("Polling response:", response.data);
+            const resData = response.data.result.data;
+
+            // Check if payment is successful (response_code "00" means transaction was found and processed)
+            if (resData.response_code === "00" && resData.txn_status === 1) {
+                // Payment success
+                console.log("✓ Payment successful!");
+                res.write(`data: ${JSON.stringify({ success: true })}\n\n`);
+                clearInterval(interval);
+                res.end();
+            } 
+            // Check for actual payment failure (txn_status 2 = failed)
+            else if (resData.response_code === "00" && resData.txn_status === 2) {
+                // Payment failed
+                console.log("✗ Payment failed!");
+                res.write(`data: ${JSON.stringify({ fail: true })}\n\n`);
+                clearInterval(interval);
+                res.end();
+            }
+            // For any other response code, just send the data - payment is still pending
+            else {
+                console.log("Payment pending, response_code:", resData.response_code);
+                res.write(`data: ${JSON.stringify(response.data)}\n\n`);
+            }
+
+        } catch (err) {
+            console.error("Error querying NETS:", err.message);
+            clearInterval(interval);
+            res.write(`data: ${JSON.stringify({ fail: true, error: err.message })}\n\n`);
+            res.end();
         }
-        req.session.cart = [];
-        res.redirect('/orders');
-      });
-    } else {
-      res.status(400).send('Payment verification failed');
-    }
-  } catch (err) {
-    console.error('NETS success handler error:', err.message);
-    res.status(500).send('Error processing payment');
-  }
-});
 
-// NETS Payment Failure Handler
-app.get('/nets/fail', isAuthenticated, (req, res) => {
-  res.render('netsFail', { message: 'Payment failed. Please try again.' });
-});
 
+        // Timeout
+        if (pollCount >= maxPolls) {
+            clearInterval(interval);
+            frontendTimeoutStatus = 1;
+            res.write(`data: ${JSON.stringify({ fail: true, error: "Timeout" })}\n\n`);
+            res.end();
+        }
+    }, 5000);
+
+    req.on('close', () => {
+        clearInterval(interval);
+    });
+});
 
 app.get('/', (req, res) => res.redirect('/products'));
 
