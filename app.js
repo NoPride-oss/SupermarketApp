@@ -14,6 +14,7 @@ const userRoutes = require('./routes/userRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const paypal = require('./services/paypal');
+const stripeService = require('./services/stripe');
 
 
 const app = express();
@@ -52,6 +53,14 @@ function isAuthenticated(req, res, next) {
 function isAdmin(req, res, next) {
   if (req.session && req.session.user && req.session.user.role === 'admin') return next();
   return res.status(403).send('Forbidden: Admins only');
+}
+function setFlash(req, type, message) {
+  if (typeof req.flash === 'function') {
+    req.flash(type, message);
+  } else {
+    req.session._flash = req.session._flash || {};
+    req.session._flash[type] = message;
+  }
 }
 
 // Apply authentication middleware for orders only
@@ -217,6 +226,100 @@ app.post('/api/paypal/refund', isAdmin, async (req, res) => {
     console.error('PayPal refund error:', err.message);
     res.status(500).json({ error: 'Failed to process refund', message: err.message });
   }
+});
+
+// Stripe: Create Checkout Session
+app.post('/api/stripe/create-checkout-session', isAuthenticated, async (req, res) => {
+  try {
+    const user = req.session.user;
+    const cart = req.session.cart || [];
+    if (!cart.length) {
+      return res.status(400).json({ error: 'Cart is empty' });
+    }
+
+    const lineItems = cart.map((item) => {
+      const unitAmount = Math.round(Number(item.price) * 100);
+      if (!Number.isFinite(unitAmount) || unitAmount <= 0) {
+        throw new Error('Invalid item price for Stripe');
+      }
+      return {
+        price_data: {
+          currency: 'sgd',
+          product_data: { name: item.name || `Product ${item.productId}` },
+          unit_amount: unitAmount
+        },
+        quantity: Number(item.quantity) || 1
+      };
+    });
+
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const session = await stripeService.createCheckoutSession({
+      lineItems,
+      successUrl: `${baseUrl}/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${baseUrl}/stripe/cancel`,
+      customerEmail: user && user.email ? user.email : undefined,
+      metadata: { userId: user && user.userId ? String(user.userId) : '' }
+    });
+
+    req.session.pendingStripeSessionId = session.id;
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error('Stripe create-checkout-session error:', err.message);
+    res.status(500).json({ error: 'Failed to create Stripe checkout session', message: err.message });
+  }
+});
+
+// Stripe: Success redirect (create order after payment)
+app.get('/stripe/success', isAuthenticated, async (req, res) => {
+  try {
+    const sessionId = req.query.session_id;
+    if (!sessionId) {
+      setFlash(req, 'error', 'Missing Stripe session ID');
+      return res.redirect('/cart/checkout');
+    }
+    if (!req.session.pendingStripeSessionId || req.session.pendingStripeSessionId !== sessionId) {
+      setFlash(req, 'error', 'Stripe session mismatch or expired');
+      return res.redirect('/cart/checkout');
+    }
+
+    const session = await stripeService.getCheckoutSession(sessionId);
+    if (session.payment_status !== 'paid') {
+      setFlash(req, 'error', 'Stripe payment not completed');
+      return res.redirect('/cart/checkout');
+    }
+
+    const userId = req.session.user && req.session.user.userId;
+    const cart = req.session.cart || [];
+    if (!cart.length) {
+      setFlash(req, 'error', 'Cart is empty');
+      return res.redirect('/cart');
+    }
+    const items = cart.map(i => ({ productId: i.productId, quantity: Number(i.quantity), price: Number(i.price) }));
+    const total = items.reduce((s, it) => s + (it.price * it.quantity), 0);
+
+    const Orders = require('./models/Orders');
+    Orders.createOrder(userId, items, total, (err, result) => {
+      if (err) {
+        console.error('Stripe order creation error:', err);
+        setFlash(req, 'error', 'Payment captured but order failed to save');
+        return res.redirect('/cart');
+      }
+      req.session.cart = [];
+      req.session.pendingStripeSessionId = null;
+      setFlash(req, 'success', 'Stripe payment completed and order created');
+      return res.redirect('/orders');
+    });
+  } catch (err) {
+    console.error('Stripe success error:', err.message);
+    setFlash(req, 'error', 'Failed to confirm Stripe payment');
+    return res.redirect('/cart/checkout');
+  }
+});
+
+// Stripe: Cancel redirect
+app.get('/stripe/cancel', isAuthenticated, (req, res) => {
+  setFlash(req, 'error', 'Stripe payment cancelled');
+  return res.redirect('/cart/checkout');
 });
 
 //NETS QR Functions

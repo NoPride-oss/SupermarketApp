@@ -359,6 +359,11 @@
               </button>
             </li>
             <li class="nav-item" role="presentation">
+              <button class="nav-link" id="stripe-tab" data-bs-toggle="tab" data-bs-target="#stripe-content" type="button" role="tab" aria-controls="stripe-content" aria-selected="false">
+                <i class="fab fa-stripe"></i> Stripe
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
               <button class="nav-link" id="nets-tab" data-bs-toggle="tab" data-bs-target="#nets-content" type="button" role="tab" aria-controls="nets-content" aria-selected="false">
                 <i class="fas fa-qrcode"></i> NETS QR
               </button>
@@ -370,6 +375,16 @@
             <!-- PayPal Tab -->
             <div class="tab-pane fade show active" id="paypal-content" role="tabpanel" aria-labelledby="paypal-tab">
               <div id="paypal-buttons" class="my-4"></div>
+            </div>
+
+            <!-- Stripe Tab -->
+            <div class="tab-pane fade" id="stripe-content" role="tabpanel" aria-labelledby="stripe-tab">
+              <button type="button" id="stripe-checkout-btn" class="btn btn-dark w-100" style="padding: 12px; font-weight: 500; border-radius: 8px;">
+                <i class="fab fa-stripe-s"></i> Pay with Stripe
+              </button>
+              <p style="text-align: center; margin-top: 15px; font-size: 13px; color: #999;">
+                <i class="fas fa-info-circle"></i> You'll be redirected to Stripe to complete payment
+              </p>
             </div>
 
             <!-- NETS Tab -->
@@ -393,27 +408,102 @@
     <% } %>
   </main>
 
+  <script>
+    // Calculate cart total from DOM
+    function calculateCartTotal() {
+      let total = 0;
+      const summaryItems = document.querySelectorAll('.summary-item');
+      if (summaryItems.length > 0) {
+        const lastItem = summaryItems[summaryItems.length - 1];
+        const parts = lastItem.textContent.split('$');
+        if (parts.length > 1) {
+          total = parseFloat(parts[1].trim());
+        }
+      }
+      return total;
+    }
+
+    const cartTotal = calculateCartTotal();
+    console.log('Cart total calculated:', cartTotal, 'Type:', typeof cartTotal);
+
+    // Stripe Checkout Handler
+    const stripeCheckoutBtn = document.getElementById('stripe-checkout-btn');
+    if (stripeCheckoutBtn) {
+      stripeCheckoutBtn.addEventListener('click', async function() {
+        stripeCheckoutBtn.disabled = true;
+        stripeCheckoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Redirecting to Stripe...';
+        try {
+          const response = await fetch('/api/stripe/create-checkout-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          const data = await response.json();
+          if (!response.ok || !data.url) {
+            throw new Error(data.error || data.message || 'Failed to start Stripe checkout');
+          }
+          window.location.href = data.url;
+        } catch (err) {
+          alert('Stripe error: ' + err.message);
+          stripeCheckoutBtn.disabled = false;
+          stripeCheckoutBtn.innerHTML = '<i class="fab fa-stripe-s"></i> Pay with Stripe';
+        }
+      });
+    }
+
+    // NETS QR Code Handler
+    const netsCheckoutBtn = document.getElementById('nets-checkout-btn');
+    if (netsCheckoutBtn) {
+      netsCheckoutBtn.addEventListener('click', async function() {
+        netsCheckoutBtn.disabled = true;
+        netsCheckoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating QR Code...';
+        
+        try {
+          const response = await fetch('/api/nets-qr/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cartTotal: cartTotal })
+          });
+
+          if (response.ok) {
+            // Redirect to NETS QR display page
+            const html = await response.text();
+            document.open();
+            document.write(html);
+            document.close();
+          } else {
+            // Parse error response
+            let errorMsg = 'Failed to generate QR code';
+            const contentType = response.headers.get('content-type');
+            
+            if (contentType && contentType.includes('application/json')) {
+              try {
+                const error = await response.json();
+                errorMsg = error.error || error.message || errorMsg;
+              } catch (e) {
+                errorMsg = 'Server error';
+              }
+            }
+            
+            alert('Error: ' + errorMsg);
+            netsCheckoutBtn.disabled = false;
+            netsCheckoutBtn.innerHTML = '<i class="fas fa-qrcode"></i> Generate NETS QR Code';
+          }
+        } catch (err) {
+          console.error('NETS checkout error:', err);
+          alert('Error: ' + err.message);
+          netsCheckoutBtn.disabled = false;
+          netsCheckoutBtn.innerHTML = '<i class="fas fa-qrcode"></i> Generate NETS QR Code';
+        }
+      });
+    }
+  </script>
+
   <% if (paypalClientId && paypalClientId.trim() !== '') { %>
     <script>
       window.PAYPAL_CLIENT_ID = '<%= paypalClientId %>';
     </script>
     <script src="https://www.paypal.com/sdk/js?client-id=<%= paypalClientId %>&currency=SGD"></script>
     <script>
-      // Calculate cart total from DOM
-      function calculateCartTotal() {
-        let total = 0;
-        const summaryItems = document.querySelectorAll('.summary-item');
-        if (summaryItems.length > 0) {
-          const lastItem = summaryItems[summaryItems.length - 1];
-          const totalText = lastItem.textContent.split('$')[1].trim();
-          total = parseFloat(totalText);
-        }
-        return total;
-      }
-      
-      const cartTotal = calculateCartTotal();
-      console.log('Cart total calculated:', cartTotal, 'Type:', typeof cartTotal);
-      
       // Create order on the server
       paypal.Buttons({
         createOrder: function() {
@@ -449,53 +539,6 @@
           console.error('PayPal error:', err);
         }
       }).render('#paypal-buttons');
-
-      // NETS QR Code Handler
-      const netsCheckoutBtn = document.getElementById('nets-checkout-btn');
-      if (netsCheckoutBtn) {
-        netsCheckoutBtn.addEventListener('click', async function() {
-          netsCheckoutBtn.disabled = true;
-          netsCheckoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating QR Code...';
-          
-          try {
-            const response = await fetch('/api/nets-qr/generate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ cartTotal: cartTotal })
-            });
-
-            if (response.ok) {
-              // Redirect to NETS QR display page
-              const html = await response.text();
-              document.open();
-              document.write(html);
-              document.close();
-            } else {
-              // Parse error response
-              let errorMsg = 'Failed to generate QR code';
-              const contentType = response.headers.get('content-type');
-              
-              if (contentType && contentType.includes('application/json')) {
-                try {
-                  const error = await response.json();
-                  errorMsg = error.error || error.message || errorMsg;
-                } catch (e) {
-                  errorMsg = 'Server error';
-                }
-              }
-              
-              alert('Error: ' + errorMsg);
-              netsCheckoutBtn.disabled = false;
-              netsCheckoutBtn.innerHTML = '<i class="fas fa-qrcode"></i> Generate NETS QR Code';
-            }
-          } catch (err) {
-            console.error('NETS checkout error:', err);
-            alert('Error: ' + err.message);
-            netsCheckoutBtn.disabled = false;
-            netsCheckoutBtn.innerHTML = '<i class="fas fa-qrcode"></i> Generate NETS QR Code';
-          }
-        });
-      }
     </script>
   <% } %>
 
